@@ -9,19 +9,43 @@ provider:
   environment:
     REGION: us-east-1
     BUCKET_NAME: ai-image-tagging-uploads
+    DYNAMODB_NAME: ImageTags
   iamRoleStatements:
     - Effect: 'Allow'
       Action:
         - s3:PutObject
       Resource: arn:aws:s3:::ai-image-tagging-uploads/*
-  
+    - Effect: 'Allow'
+      Action:
+        - s3:GetObject
+      Resource: arn:aws:s3:::ai-image-tagging-uploads/*
+    - Effect: 'Allow'
+      Action:
+        - rekognition:DetectLabels
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+      Resource:
+        - arn:aws:dynamodb:us-east-1:506587498790:table/ImageTags
+
 resources:
   Resources:
     BannerImagesBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ai-image-tagging-uploads
-
+    ImageResultsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ImageTags
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: fileName
+            AttributeType: S
+        KeySchema:
+          - AttributeName: fileName
+            KeyType: HASH
 functions:
   uploadImage:
     handler: handlers/uploadUrlHandler.uploadUrlHandler
@@ -29,3 +53,11 @@ functions:
       - httpApi:
           path: /upload-image
           method: post
+  getImageLabels:
+    handler: handlers/processImageHandler.processImageRecognition
+    events:
+      - s3:
+          bucket: ai-image-tagging-uploads
+          event: s3:ObjectCreated:*
+          existing: true
+      
