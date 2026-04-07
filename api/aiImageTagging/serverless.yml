@@ -1,0 +1,31 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: learnstack
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: aiImageTagging
+
+provider:
+  name: aws
+  runtime: nodejs24.x
+  environment:
+    REGION: us-east-1
+    BUCKET_NAME: ai-image-tagging-uploads
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+        - s3:PutObject
+      Resource: arn:aws:s3:::ai-image-tagging-uploads/*
+  
+resources:
+  Resources:
+    BannerImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ai-image-tagging-uploads
+
+functions:
+  uploadImage:
+    handler: handlers/uploadUrlHandler.uploadUrlHandler
+    events:
+      - httpApi:
+          path: /upload-image
+          method: post
