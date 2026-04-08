@@ -46,6 +46,10 @@ exports.getObject = async ({ bucket, key }) => {
     return response;
 };
 
+exports.deleteObject = async ({ bucket, key }) => {
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+};
+
 exports.getObjectBytes = async (response) => {
     // Accept either the full response or the Body directly
     const body = response && response.Body ? response.Body : response;

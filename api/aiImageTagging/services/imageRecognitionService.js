@@ -3,7 +3,7 @@ const { mapLabelsToDomain } = require('../domain/imageRecognition.js');
 
 const client = new RekognitionClient({ region: process.env.REGION });
 
-exports.processImageRecognition = async (imageBytes) => {
+exports.processImageRecognitionService = async (imageBytes) => {
   if (!imageBytes) {
     throw new Error('imageBytes is required');
   }
@@ -16,6 +16,9 @@ exports.processImageRecognition = async (imageBytes) => {
 
   const response = await client.send(command);
 
-  return mapLabelsToDomain(response.Labels || []);
+  return (response.Labels || []).map((label) => ({
+    name: label.Name,
+    confidence: label.Confidence,
+  }));
 };
 
