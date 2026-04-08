@@ -9,15 +9,22 @@ provider:
   environment:
     REGION: us-east-1
     BUCKET_NAME: ai-image-tagging-uploads
-    DYNAMODB_NAME: ImageTags
+    DYNAMODB_NAME: image-results-table
+    CONNECTIONS_TABLE_NAME: websocket-connections
+    WS_ENDPOINT:
+      Fn::Join:
+        - ""
+        - - "https://"
+          - Ref: WebsocketsApi
+          - ".execute-api."
+          - ${self:provider.environment.REGION}
+          - ".amazonaws.com/dev"
   iamRoleStatements:
     - Effect: 'Allow'
       Action:
         - s3:PutObject
-      Resource: arn:aws:s3:::ai-image-tagging-uploads/*
-    - Effect: 'Allow'
-      Action:
         - s3:GetObject
+        - s3:DeleteObject
       Resource: arn:aws:s3:::ai-image-tagging-uploads/*
     - Effect: 'Allow'
       Action:
@@ -25,20 +32,49 @@ provider:
       Resource: '*'
     - Effect: Allow
       Action:
+        - bedrock:InvokeModel
+      Resource: "*"
+    - Effect: Allow
+      Action:
         - dynamodb:PutItem
       Resource:
-        - arn:aws:dynamodb:us-east-1:506587498790:table/ImageTags
-
+        - arn:aws:dynamodb:us-east-1:506587498790:table/image-results-table
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:DeleteItem
+        - dynamodb:Scan
+      Resource:
+        - arn:aws:dynamodb:us-east-1:506587498790:table/websocket-connections
+    - Effect: Allow
+      Action:
+        - execute-api:ManageConnections
+      Resource:
+        - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$connect
+        - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$default
+        - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$disconnect
+    
 resources:
   Resources:
     BannerImagesBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ai-image-tagging-uploads
+    WebSocketConnectionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: websocket-connections
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: connectionId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: connectionId
+            KeyType: HASH
     ImageResultsTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: ImageTags
+        TableName: image-results-table
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: fileName
@@ -46,6 +82,7 @@ resources:
         KeySchema:
           - AttributeName: fileName
             KeyType: HASH
+    
 functions:
   uploadImage:
     handler: handlers/uploadUrlHandler.uploadUrlHandler
@@ -60,4 +97,18 @@ functions:
           bucket: ai-image-tagging-uploads
           event: s3:ObjectCreated:*
           existing: true
-      
+  wsConnect:
+    handler: handlers/wsConnectHandler.connectHandler
+    events:
+      - websocket:
+          route: $connect
+  wsDisconnect:
+    handler: handlers/wsDisconnectHandler.disconnectHandler
+    events:
+      - websocket:
+          route: $disconnect
+  wsDefault:
+    handler: handlers/wsDefaultHandler.defaultHandler
+    events:
+      - websocket:
+          route: $default
