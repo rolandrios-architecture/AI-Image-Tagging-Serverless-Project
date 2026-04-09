@@ -4,17 +4,17 @@ const client = new BedrockRuntimeClient({ region: "us-east-1" });
 
 // 🔧 Helper: extract JSON safely from LLM response
 const extractJSON = (text) => {
+  // Remove markdown if exists
+  const clean = text.replaceAll(/```json|```/g, "");
+
+  // Extract first JSON object
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+
   try {
-    // Remove markdown if exists
-    const clean = text.replace(/```json|```/g, "");
-
-    // Extract first JSON object
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON found");
-
     return JSON.parse(match[0]);
   } catch (err) {
-    console.error("❌ JSON parse failed. Raw output:", text);
+    console.error("JSON parse failed. Raw output:", text, err);
     return null;
   }
 };
@@ -22,13 +22,14 @@ const extractJSON = (text) => {
 exports.generateDescription = async (labels) => {
   try {
     // 🔧 Normalize labels input
-    const labelNames = Array.isArray(labels)
-      ? labels.map((l) => (typeof l === "string" ? l : l.name)).filter(Boolean)
-      : (labels && labels.Labels)
-      ? labels.Labels.map((l) => l.Name)
-      : [];
+    let labelNames = [];
+    if (Array.isArray(labels)) {
+      labelNames = labels.map((l) => (typeof l === "string" ? l : l.name)).filter(Boolean);
+    } else {
+      labelNames = labels?.Labels?.map((l) => l.Name) ?? [];
+    }
 
-    // 🔒 Strong prompt (anti-hallucination)
+    //Strong prompt (anti-hallucination)
     const prompt = `
 You are a strict image analysis system.
 
@@ -36,15 +37,16 @@ You are given detected objects from an image:
 ${labelNames.join(", ")}
 
 Rules:
-- Only use the provided labels
-- Do NOT invent or assume anything
-- Do NOT add artistic or abstract descriptions
-- Write a natural, concise sentence (not a list)
-- Output ONLY valid JSON (no extra text)
+- Use ONLY the provided labels as factual grounding
+- You MAY enhance the description with natural, vivid language
+- Do NOT introduce objects that are not in the labels
+- Write a natural, slightly evocative sentence (1 sentence)
+- Keep it concise but descriptive
+- Output ONLY valid JSON
 
 Format:
 {
-  "description": "short factual sentence",
+  "description": "...",
   "tags": ["tag1", "tag2"]
 }
 `;
@@ -73,7 +75,19 @@ Format:
 
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
 
-    const text = responseBody.content?.[0]?.text || "";
+ let text = "";
+
+if (
+  responseBody &&
+  Array.isArray(responseBody.content) &&
+  responseBody.content.length > 0 &&
+  responseBody.content[0] &&
+  responseBody.content[0].text
+) {
+  text = responseBody.content[0].text;
+} else {
+  console.error("Unexpected Bedrock response:", JSON.stringify(responseBody));
+}
 
     // 🧠 Safe parsing
     const parsed = extractJSON(text);
@@ -88,7 +102,7 @@ Format:
 
     return parsed;
   } catch (err) {
-    console.error("🔥 generateDescription failed:", err);
+    console.error("generateDescription failed:", err);
 
     // 🔁 fallback total
     const labelNames = Array.isArray(labels)

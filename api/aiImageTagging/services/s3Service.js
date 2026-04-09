@@ -1,6 +1,7 @@
 const { S3Client, 
     PutObjectCommand, 
-    GetObjectCommand } = require("@aws-sdk/client-s3")
+    GetObjectCommand,
+    DeleteObjectCommand } = require("@aws-sdk/client-s3")
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner")
 
 const s3Client = new S3Client({
@@ -47,12 +48,13 @@ exports.getObject = async ({ bucket, key }) => {
 };
 
 exports.deleteObject = async ({ bucket, key }) => {
-  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  await s3Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 };
+
 
 exports.getObjectBytes = async (response) => {
     // Accept either the full response or the Body directly
-    const body = response && response.Body ? response.Body : response;
+    const body = response?.Body ?? response;
     // If the body exposes a helper to get bytes (some runtimes/webstreams), use it
     if (body && typeof body.transformToByteArray === 'function') {
         return transformToBuffer(body);

@@ -1,16 +1,12 @@
 const { processImageRecognitionService } = require('../services/imageRecognitionService.js');
 const { getObject, getObjectBytes, deleteObject } = require('../services/s3Service.js');
-const { saveImageTags } = require('../services/dynamoService.js');
+const { saveImageTags, saveImageResult } = require('../services/dynamoService.js');
 const { success, error: errorResponse } = require('../utils/responseUtils.js');
 const { generateDescription } = require("../services/bedrockService.js");
-const { saveImageResult } = require("../services/dynamoService.js");
 const { sendToAllConnections } = require("../utils/websocket.js");
-
-
-// Helper: validate file extension
-const isValidImageKey = (key) => {
-    return /\.(jpg|jpeg|png)$/i.test(key);
-};
+const { isValidImage } = require("../security/fileValidation.js");
+const { filterLabels, filterLabelsWithConfidence } = require('../domain/labelFilter');
+const { handleProcessingError } = require('../services/errorHandlingService.js');
 
 // Helper: remove the S3 object and notify websocket clients
 const handleInvalidFile = async ({ bucket, key }) => {
@@ -25,70 +21,159 @@ const handleInvalidFile = async ({ bucket, key }) => {
     );
 };
 
+const sanitizeForDynamo = (value) => {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (Array.isArray(value)) {
+        return value
+            .map(sanitizeForDynamo)
+            .filter((item) => item !== undefined);
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value)
+                .map(([key, val]) => [key, sanitizeForDynamo(val)])
+                .filter(([, val]) => val !== undefined)
+        );
+    }
+
+    return value;
+};
+
+const processImage = async ({ bucket, key }) => {
+    console.log('Step 1: getObject');
+    const response = await getObject({ bucket, key });
+
+    const isValid = isValidImage({
+        key,
+        contentType: response.ContentType,
+        size: response.ContentLength
+    });
+
+    if (!isValid) {
+        await handleInvalidFile({ bucket, key });
+        return null;
+    }
+
+    console.log('Step 2: getObjectBytes');
+    const imageBytes = await getObjectBytes(response);
+
+    console.log('Step 3: processImageRecognitionService');
+    const labels = await processImageRecognitionService(imageBytes);
+
+    console.log('Step 4: filterLabels (preserve confidence)');
+    const cleanLabels = filterLabelsWithConfidence(labels);
+
+    console.log('Step 5: fetchAiData');
+    const aiData = await fetchAiData(cleanLabels);
+
+    if (!aiData?.description) {
+        throw new Error('Failed to generate AI description');
+    }
+
+    return { cleanLabels, aiData };
+};
 
 exports.processImageRecognition = async (event) => {
+    let bucket;
+    let key;
+
     try {
-        const record = event.Records[0];
+        const record = event?.Records?.[0];
 
-        const bucket = record.s3.bucket.name;
-        const key = decodeURIComponent(record.s3.object.key);
+        if (!record) {
+            console.warn('⚠️ No Records in event');
+            return;
+        }
 
-        if (!isValidImageKey(key)) {
-            await handleInvalidFile({ bucket, key });
+        const eventName = record?.eventName;
+
+        if (eventName?.startsWith('ObjectRemoved')) {
+            console.log('Skipping delete event:', eventName);
+            return;
+        }
+
+        bucket = record?.s3?.bucket?.name;
+        key = record?.s3?.object?.key
+            ? decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '))
+            : undefined;
+
+        if (!bucket || !key) {
+            console.warn('⚠️ Missing bucket or key');
             return;
         }
 
         console.log(`Processing image from bucket: ${bucket}, key: ${key}`);
-        console.log('key: ', key);
 
-        const response = await getObject({ bucket, key });
+        const result = await processImage({ bucket, key });
 
-        const imageBytes = await getObjectBytes(response);
+        if (!result) {
+            return;
+        }
 
-        const labels = await processImageRecognitionService(imageBytes);
-
-        const labelNames = labels.map((l) => l.name);
-
-        const aiData = await fetchAiData(labelNames);
-
+        const { cleanLabels, aiData } = result;
         const imageUrl = `https://${bucket}.s3.amazonaws.com/${key}`;
 
-        await persistImageTags({ fileName: key, imageUrl, labels, description: aiData.description, tags: aiData.tags });
+        await persistImageTags({
+            fileName: key,
+            imageUrl,
+            labels: cleanLabels,
+            description: aiData.description,
+            tags: aiData.tags
+        });
 
         await persistImageResult({
             fileName: key,
             imageUrl,
-            labels,
+            labels: cleanLabels,
             description: aiData.description,
             tags: aiData.tags,
         });
 
-        // Notify connected clients that processing finished
         await notifyProcessed({
             fileName: key,
-            labels,
+            labels: cleanLabels,
             description: aiData.description,
             tags: aiData.tags,
         });
 
-        console.log('Rekognition result: ', labels);
-
-        console.log('Saved to DynamoDB');
-
-        return success(labels);
+        return success(cleanLabels);
     } catch (err) {
-        console.error(err);
-        return errorResponse(err.message || 'Internal error');
+        await handleProcessingError({ bucket, key, err });
+        return errorResponse(err.message || 'Processing failed');
     }
 };
 
 // Persist helpers
 const persistImageTags = async ({ fileName, imageUrl, labels, description = '', tags = [] }) => {
-    return saveImageTags({ fileName, imageUrl, labels, description, tags });
+    const payload = sanitizeForDynamo({
+        fileName,
+        imageUrl,
+        labels,
+        description,
+        tags
+    });
+
+    console.log('Dynamo payload for saveImageTags:', JSON.stringify(payload));
+
+    return saveImageTags(payload);
 };
 
 const persistImageResult = async ({ fileName, imageUrl, labels, description, tags }) => {
-    return saveImageResult({ fileName, imageUrl, labels, description, tags });
+    const payload = sanitizeForDynamo({
+        fileName,
+        imageUrl,
+        labels,
+        description,
+        tags
+    });
+
+    console.log('Dynamo payload for saveImageResult:', JSON.stringify(payload));
+
+    return saveImageResult(payload);
 };
 
 // Helper: get AI description + tags with safe fallback
@@ -96,7 +181,7 @@ const fetchAiData = async (labels) => {
     try {
         return await generateDescription(labels);
     } catch (err) {
-        console.error('generateDescription failed, returning fallback:', err && err.message ? err.message : err);
+        console.error('generateDescription failed, returning fallback:', err?.message || err);
         return { description: '', tags: [] };
     }
 };
@@ -115,6 +200,6 @@ const notifyProcessed = async ({ fileName, labels, description = '', tags = [] }
             process.env.WS_ENDPOINT
         );
     } catch (err) {
-        console.error('Failed to notify clients:', err && err.message ? err.message : err);
+        console.error('Failed to notify clients:', err?.message || err);
     }
 };
