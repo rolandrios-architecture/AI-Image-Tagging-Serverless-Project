@@ -1,5 +1,4 @@
 const { RekognitionClient, DetectLabelsCommand } = require("@aws-sdk/client-rekognition");
-const { mapLabelsToDomain } = require('../domain/imageRecognition.js');
 
 const client = new RekognitionClient({ region: process.env.REGION });
 

@@ -11,6 +11,8 @@ provider:
     BUCKET_NAME: ai-image-tagging-uploads
     DYNAMODB_NAME: image-results-table
     CONNECTIONS_TABLE_NAME: websocket-connections
+    SNS_TOPIC_ARN:
+      Ref: ErrorTopic
     WS_ENDPOINT:
       Fn::Join:
         - ""
@@ -53,7 +55,11 @@ provider:
         - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$connect
         - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$default
         - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$disconnect
-    
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource:
+        - Ref: ErrorTopic
 resources:
   Resources:
     BannerImagesBucket:
@@ -82,7 +88,17 @@ resources:
         KeySchema:
           - AttributeName: fileName
             KeyType: HASH
-    
+    ErrorTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: image-processing-errors
+    ErrorSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn:
+          Ref: ErrorTopic
+        Protocol: email
+        Endpoint: riosroland97@gmail.com
 functions:
   uploadImage:
     handler: handlers/uploadUrlHandler.uploadUrlHandler

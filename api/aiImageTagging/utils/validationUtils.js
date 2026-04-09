@@ -14,7 +14,7 @@ exports.validateRequiredFields = ( {fileName, fileType} ) => {
 }
 
 exports.validateFileType = (fileType) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
     if (!allowedTypes.includes(fileType)) {
         throw new Error(`Invalid file type: ${fileType}. Allowed types are: ${allowedTypes.join(', ')}`);
     }
