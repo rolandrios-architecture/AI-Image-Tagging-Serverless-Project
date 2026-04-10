@@ -1,0 +1,157 @@
+Registro de errores (proyecto AI Image Tagging)
+Fecha: 2026-04-09 / 10
+
+1) Error: Invalid configuration encountered at 'functions.uploadImage.events.0.httpApi': unrecognized property 'cors'
+   - Síntoma: Serverless rechazaba `cors` dentro del evento `httpApi`.
+   - Solución: Mover `cors` a `provider.httpApi.cors: true` en `serverless.yml`.
+
+2) Error: Browser CORS — No 'Access-Control-Allow-Origin' header is present
+   - Síntoma: Navegador bloqueaba peticiones desde `http://localhost:5173`.
+   - Solución(es): Habilitar `provider.httpApi.cors: true` y añadir headers CORS en las respuestas Lambda (`utils/responseUtils.js`). También configurar CORS en el bucket S3 para PUT/POST.
+
+3) Error: 404 Not Found al llamar a /upload-image/uploadImageS3
+   - Síntoma: Ruta inexistente → API Gateway devolvía 404 sin cabeceras CORS.
+   - Solución: Corregir la URL en el frontend a `/upload-image` o añadir la ruta correspondiente en `serverless.yml`.
+
+4) Error: 500 Internal Server Error al pedir upload-url (upload-image)
+   - Síntoma: Validaciones y mapa de errores mal alineados causaban 500.
+   - Solución: Normalizar `validationUtils.js` para lanzar códigos de error cortos (p.ej. `INVALID_JSON`, `MISSING_FIELDS`, `INVALID_FILE_TYPE`) y corregir `uploadUrlHandler`/`responseUtils` para manejar `error(statusCode, message)`.
+
+5) Error: ServerlessError — S3 CORS CloudFormation: extraneous key [ExposeHeaders] / OPTIONS not valid
+   - Síntoma: CloudFormation rechazó la definición de CORS del bucket.
+   - Solución: Usar el esquema válido para CloudFormation (`AllowedMethods` sin `OPTIONS` enum inválido, eliminar `ExposeHeaders`, usar `MaxAgeSeconds`).
+
+6) Error: ResourceNotFoundException (DynamoDB) — Requested resource not found
+   - Síntoma: UpdateItem/UpdateImageResult fallaba (tabla no encontrada).
+   - Solución: Verificar `process.env.DYNAMODB_NAME`, confirmar existencia de la tabla en la cuenta/region correctas; ajustar permisos/ARNs en `serverless.yml` y/o crear la tabla.
+
+7) Error: Serverless YAML parse — bad indentation of a sequence entry
+   - Síntoma: `serverless deploy` fallaba por mala indentación en `serverless.yml`.
+   - Solución: Corregir la indentación de las listas (acciones/recursos) en `serverless.yml`.
+
+8) Error: Missing Authentication Token (API Gateway)
+   - Síntoma: Llamadas a rutas devolvían "Missing Authentication Token" (ruta/host incorrectos).
+   - Solución: Confirmar base URL y tipo de API; usar `httpApi` (HTTP API v2) para las rutas actuales, y asegurarse de llamar al endpoint correcto (no añadir `/dev` si la API usa `$default` stage). Ejecutar `serverless info --verbose` para verificar URL.
+
+9) Error: Cannot access 'fileName' before initialization
+   - Síntoma: 500 en `getImage` por usar `fileName` antes de inicializar la variable.
+   - Solución: Inicializar `fileName` (decodificar `pathParameters`) antes de referenciarlo; reordenar el código en `getImageHandler.js`.
+
+10) Error: 404 "Image not found" por duplicar prefijo `images/`
+    - Síntoma: El `fileName` almacenado era `images/xxx.jpg` y el cliente pedía `/images/images/xxx.jpg` (o lo contrario), provocando no coincidencia.
+    - Solución: Decidir un formato canon (guardar sin `images/` o almacenarlo con `images/`) y/o usar ruta greedy `/images/{fileName+}` para aceptar claves con slashes. También normalizar el frontend para no duplicar prefijos.
+
+Notas finales:
+- Muchas correcciones fueron hechas tanto en `serverless.yml` (CORS, rutas, recursos IAM) como en handlers (`getImageHandler.js`, `uploadUrlHandler.js`) y utilidades (`responseUtils.js`, `validationUtils.js`).
+- Si quieres, puedo transformar esta lista en un changelog más formal o añadir comandos y líneas de CloudWatch/ejemplos `curl` para reproducción de cada error.
+
+---
+CORS — Cambios aplicados (2026-04-10):
+
+- Moved API CORS to provider level:
+   - File: `serverless.yml`
+   - Change: removed invalid `cors` property from `functions.*.httpApi` and added `provider.httpApi.cors` with:
+      - `allowedOrigins`: `http://localhost:5173`, `http://localhost:5174`
+      - `allowedHeaders`: `Content-Type`, `Authorization`, `X-Amz-Date`, `X-Api-Key` (or `*` where appropriate)
+      - `allowedMethods`: `GET, POST, OPTIONS`
+
+- Lambda preflight fallback:
+   - File: `handlers/uploadUrlHandler.js`
+   - Change: handle `OPTIONS`/preflight in the handler (returns a CORS-enabled empty success response) so preflights work when routed to Lambda.
+
+- Ensure Lambda responses include CORS headers:
+   - File: `utils/responseUtils.js`
+   - Change: responses include `Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials`, and `Access-Control-Allow-Headers` so normal responses carry the headers.
+
+- S3 bucket CORS configuration (for presigned PUTs):
+   - File: `serverless.yml` (CloudFormation resource `BannerImagesBucket`)
+   - Change: added valid `CorsConfiguration` / `CorsRules` with:
+      - `AllowedOrigins`: `http://localhost:5173`, `http://localhost:5174`
+      - `AllowedMethods`: `PUT, POST, GET, HEAD` (do NOT include `OPTIONS` in S3 AllowedMethods for CloudFormation)
+      - `AllowedHeaders`: `*`
+      - `MaxAgeSeconds`: 3000
+
+- IAM permissions for bucket CORS management:
+   - File: `serverless.yml` (`provider.iamRoleStatements`)
+   - Change: added `s3:PutBucketCORS` and `s3:GetBucketCORS` on the bucket ARN, and reorganized/fixed IAM statements to avoid YAML duplication/indentation errors.
+
+- YAML fixes and deployment notes:
+   - Fixed duplicated mapping keys and indentation in `serverless.yml` that caused `serverless deploy` failures.
+   - If CloudFormation gets stuck in `UPDATE_IN_PROGRESS`, run `aws cloudformation cancel-update-stack --stack-name aiImageTagging-dev` then redeploy.
+
+Quick test commands used:
+
+```bash
+# API preflight (HTTP API)
+curl -i -X OPTIONS 'https://<api-host>/upload-image' \
+   -H 'Origin: http://localhost:5174' \
+   -H 'Access-Control-Request-Method: POST' \
+   -H 'Access-Control-Request-Headers: Content-Type,Authorization'
+
+# S3 preflight (presigned PUT)
+curl -i -X OPTIONS 'https://ai-image-tagging-uploads.s3.us-east-1.amazonaws.com/<object-key>' \
+   -H 'Origin: http://localhost:5174' \
+   -H 'Access-Control-Request-Method: PUT' \
+   -H 'Access-Control-Request-Headers: Content-Type'
+
+# Deploy (after ensuring stack is not stuck)
+serverless deploy
+```
+
+If you want, I can convert this into a short changelog entry or a step-by-step README section for future reference.
+
+---
+Polling / Duplicate Lambda Invocations — Error & Recommendations (2026-04-10)
+
+- Error observado:
+   - El frontend reintentaba rápidamente la comprobación del resultado (GET `/images/{fileName}`) hasta obtener la respuesta, lo que causó múltiples invocaciones de la función Lambda por cada intento. En logs se veían intentos repetidos (intentos 1/5, 2/5, ...) y cada uno ejecutaba el Lambda, generando coste innecesario.
+
+- Impacto:
+   - Coste por invocaciones Lambda duplicadas.
+   - Carga innecesaria en la base de datos y en servicios downstream.
+   - Latencia y experiencia de usuario pobres cuando los retries se solapan.
+
+- Qué hicimos ahora (mitigación rápida):
+   - Añadimos un mecanismo de fallback en el handler `getImageHandler.js` para evitar 404 false negatives (intentos con y sin prefijo `images/`) y reducir fallos por mismatch de clave.
+   - Añadimos logging para identificar cuándo se realizan múltiples lookups.
+
+- Recomendaciones futuras (priorizadas):
+   1. Cliente: implementar exponential backoff con jitter y un `isPolling`/`inFlight` flag para impedir polls concurrentes.
+       - Ventajas: reduce drásticamente el número de invocaciones mientras mantiene buen tiempo de respuesta percibido.
+       - Ejemplo (JS):
+
+```javascript
+// Exponential backoff + jitter (simple)
+async function pollResult(url, onSuccess, { maxAttempts = 6, baseDelay = 1000 } = {}) {
+   let attempt = 0;
+   let inFlight = false;
+   if (inFlight) return; // prevent overlapping polls
+   inFlight = true;
+
+   while (attempt < maxAttempts) {
+      attempt++;
+      try {
+         const res = await fetch(url);
+         if (res.ok) { const data = await res.json(); onSuccess(data); break; }
+         if (res.status !== 404) break; // non-retryable error
+      } catch (e) { /* network error -> retry */ }
+
+      const jitter = Math.floor(Math.random() * 300);
+      const wait = Math.min(baseDelay * 2 ** attempt + jitter, 30000);
+      await new Promise(r => setTimeout(r, wait));
+   }
+
+   inFlight = false;
+}
+```
+
+   2. Backend push: usar notificaciones push (WebSocket via API Gateway, SNS push to client, or a WebSocket microservice) para que el backend notifique al cliente cuando el procesamiento termine. Esto elimina la necesidad de polling continuo.
+   3. Server-side status + durable queue: procesar imágenes mediante SQS + worker Lambda y exponer un `GET /status/{id}` que sea barato y cacheable; el cliente consulta menos frecuentemente o espera notificación.
+   4. Cache 404 responses a nivel API Gateway/CloudFront por un TTL corto para evitar re-invocaciones idénticas durante unos segundos.
+   5. Idempotencia/dedupe: diseñar Lambdas para ignorar/ignorar trabajo duplicado (por ejemplo, usando un estado en DynamoDB con condición `attribute_not_exists`), de modo que múltiples invocaciones no dupliquen trabajo ni costes caros.
+
+- Diagnóstico recomendado:
+   - Revisar CloudWatch Metrics: invocations, duration, errors, throttles.
+   - Verificar que el frontend no lanza múltiples polls concurrentes (usar `isPolling` flag o similar).
+
+Implementar el backoff en el cliente es la solución más rápida y con mayor ROI; si quieres, puedo parchear `UploadCard.jsx` ahora para añadir backoff + single-flight polling. 
