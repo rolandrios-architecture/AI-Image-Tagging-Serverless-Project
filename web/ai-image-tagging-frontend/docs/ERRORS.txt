@@ -1,0 +1,258 @@
+AI Image Tagging Frontend — Error Log
+Generated / maintained by development team notes
+
+1) Vite failed to resolve import "./pages/Home.jsx"
+- Context: Build error when starting dev server; import in `src/App.jsx` referenced `./pages/Home.jsx`.
+- Symptom: Vite build error: "Does the file exist?"
+- Cause: `src/pages/Home.jsx` was missing.
+- Fix: Added `src/pages/Home.jsx` with default export `Home` and updated import in `src/App.jsx`.
+- Files changed: src/pages/Home.jsx, src/App.jsx
+
+2) `ResultPanel.jsx` was empty / missing implementation
+- Context: Runtime UI errors when rendering results.
+- Symptom: Blank UI or runtime errors referencing ResultPanel.
+- Cause: Component file empty or not returning valid JSX.
+- Fix: Implemented `ResultPanel` to render description, tags and image preview; made it robust to missing data.
+- Files changed: src/components/ResultPanel.jsx
+
+3) Missing `prop-types` package
+- Context: Build/runtime import resolution errors for `Loader.jsx` and `UploadCard.jsx`.
+- Symptom: Vite error: "Failed to resolve import 'prop-types'".
+- Cause: `prop-types` was referenced but not installed.
+- Fix: Added `prop-types` to `package.json` and ran `npm install`.
+- Commands: `npm install`
+
+4) `UploadCard.jsx` parse error (JSX returned inside handler)
+- Context: Component failed to compile.
+- Symptom: [PARSE_ERROR] Expected `}` but found `EOF` in `UploadCard.jsx`.
+- Cause: JSX `return` accidentally placed inside `handleChange` handler; component not closed properly.
+- Fix: Moved JSX `return` out of handler, closed component correctly, added PropTypes and ensured `setResult` usage is optional.
+- Files changed: src/components/UploadCard.jsx
+
+5) UI appeared black / content hidden by styling
+- Context: App mounted but page looked blank/black.
+- Symptom: DOM present but content not visible.
+- Cause: Global CSS background or element styles hiding content; plus runtime crashes could stop rendering.
+- Fix: Temporarily changed `src/index.css` background to white to reveal DOM; later restored styles and fixed runtime crashes (robust `ResultPanel`).
+- Files changed: src/index.css, src/components/ResultPanel.jsx
+
+6) Image preview not showing after processing
+- Context: After upload, preview missing.
+- Symptom: "No result available" or missing image preview.
+- Cause: `UploadCard` did not call `setResult` passed from `Home`, `ResultPanel` expected different props.
+- Fix: Ensure `UploadCard` calls `setResult` (pass `setResult` prop from `Home`), and `ResultPanel` accepts `result` or `image` and renders preview via `URL.createObjectURL(image)`.
+- Files changed: src/pages/Home.jsx, src/components/UploadCard.jsx, src/components/ResultPanel.jsx
+
+7) POST /upload-image returned 400/500: fileName and fileType are required
+- Context: When selecting a file, frontend called API to get a signed upload URL.
+- Symptom: Console showed: `POST https://<api>/upload-image 400 (Bad Request)` and backend response `{success:false, message:'fileName and fileType are required'}`.
+- Cause: Frontend `getUploadUrl()` sent an empty or incorrect request body (no file metadata), backend validation rejected it.
+- Fix: Updated `src/services/api.js` to accept `fileName` and `fileType` parameters and send JSON body `{ fileName, fileType }`; updated `src/components/UploadCard.jsx` to call `getUploadUrl(file.name, file.type)`.
+- Files changed: src/services/api.js, src/components/UploadCard.jsx
+
+Commands used while debugging:
+- `npm install` (after adding `prop-types`)
+- `npm run dev` (start Vite dev server)
+
+Notes:
+- Keep this TXT as the single source-of-truth manual changelog for errors encountered and how they were fixed.
+- If you want, I can append automated entries or add a small script to help append lines in this TXT, but you requested a manual text file for documentation.
+
+---
+
+2026-04-09T12:00:00Z — Upload URL / dataURL undefined during file upload
+- Context: While selecting a file in `UploadCard.jsx`, the frontend attempted to upload to S3 using the signed URL returned by the backend.
+- Symptom: Console printed `data.uploadURL` as `undefined` and upload failed; UI showed status stuck or `ERROR`.
+- Observed backend response (example): printed in console as `Received upload URL: { success: true, message: 'ok', uploadUrl: 'https://...' }` or sometimes nested under `data`.
+- Cause: Frontend expected `uploadURL` but backend returned a different field name (`uploadUrl`, `url`, `upload_url`, or nested under `data`). The missing normalized property caused `undefined` and subsequent failures.
+- Fix implemented:
+	- Normalized backend response in `src/services/api.js` to provide `uploadURL` by checking common keys (`uploadURL`, `uploadUrl`, `url`, `upload_url`, or `data.*`).
+	- Updated `src/components/UploadCard.jsx` to validate `data.uploadURL` and throw a descriptive error when missing; set status to `ERROR` on failure.
+	- Added `uploadFileToS3` call to use the normalized URL and added better error logging.
+	- Added dev-only automatic logging to `docs/ERRORS.txt` via Vite middleware and `src/services/errorDoc.js` for future uncaught/developer errors.
+- Files changed: src/services/api.js, src/components/UploadCard.jsx, src/services/errorDoc.js, vite.config.js
+- Commands / Notes: Restart the dev server (`npm run dev`) after these changes so the Vite middleware is active. Reproduce the upload and inspect the console for the `Received upload URL:` log which now shows the normalized object.
+
+---
+
+2026-04-09T12:10:00Z — WebSocket variable declared but unused; hook used incorrectly
+- Context: `UploadCard.jsx` attempted to use a WebSocket hook but declared the URL and hook at module scope.
+- Symptom: Lint/console warning that `WS_ULR` (typo) was declared but never used; hooks called outside component scope, causing incorrect behavior.
+- Cause: Typo `WS_ULR` and calling the `webSocket()` hook outside the React component (hooks must run inside components). Also an extra duplicate call to `webSocket(WS_URL)` inside the file upload handler.
+- Fix implemented:
+	- Moved the `WS_URL` declaration and `const { isConnected, lastMessage } = webSocket(WS_URL)` inside the `UploadCard` component so the hook runs correctly.
+	- Corrected the typo `WS_ULR` → `WS_URL`.
+	- Removed the duplicate/incorrect `webSocket(WS_URL)` call inside the `handleChange` handler.
+- Files changed: src/components/UploadCard.jsx
+- Notes: This resolves the "declared but never used" warning and ensures WebSocket status and messages render correctly in the component.
+
+---
+
+2026-04-09T12:20:00Z — Uploaded image preview blank; added placeholder result to render preview
+- Context: After a successful file upload, the UI remained blank because `ResultPanel` waited for a `result` object to render alongside the image preview.
+- Symptom: App showed a blank/empty page even though the file uploaded successfully (console printed "File uploaded successfully!").
+- Cause: `Home` only renders `ResultPanel` when `status === "DONE" && result` — the upload flow completed but `result` was null, so no preview was shown.
+- Fix implemented:
+	- After successful upload (PUT to S3) `UploadCard` now calls `setResult({ description: 'Uploaded image', tags: [] })` before setting status to `DONE` so `ResultPanel` renders immediately and shows the image preview.
+	- This is a lightweight placeholder; once backend tagging completes you can update `result` with real description and tags.
+- Files changed: src/components/UploadCard.jsx
+- Notes: If you prefer waiting for backend tagging, replace the placeholder with a call to the processing API (or update via WebSocket/polling) and set `result` when real tags are available.
+
+---
+
+2026-04-09T13:00:00Z — Removed WebSockets; Lambda added to fetch results from DB
+- Context: Previously the app used WebSockets for real-time tagging updates and had a CSP-related troubleshooting section here.
+- Symptom: When switching away from WebSockets, the frontend previously experienced blocked connections in some dev CSP configurations (older notes removed).
+- Fix implemented:
+	- Removed WebSocket-based flow from the frontend and removed the `useWebSocket` hook.
+	- Implemented a serverless Lambda (or equivalent server function) that retrieves tagging results from the database by file name.
+	- Frontend now uploads the image, sets a lightweight placeholder result, and polls the Lambda endpoint for the final tagging result using timeouts (`pollForResult` in `src/services/api.js`).
+	- This avoids WebSocket deployment complexity and centralizes result retrieval in the Lambda which queries the DB and returns a normalized result object `{ description, tags, confidence }`.
+- Files changed: src/components/UploadCard.jsx, src/services/api.js, (backend) lambda function to fetch results from DB
+
+---
+
+2026-04-10T09:30:00Z — Missing export: `getImageResult` caused white screen
+- Context: Browser console showed a runtime syntax error indicating the module import failed for `getImageResult` when loading `UploadCard.jsx`.
+- Symptom: Uncaught SyntaxError: The requested module '/src/services/api.js?t=1775839579696' does not provide an export named 'getImageResult' (at UploadCard.jsx:1:58)
+- Cause: `src/components/UploadCard.jsx` imports `getImageResult` from `src/services/api.js` but `api.js` did not export that function.
+- Fix: Added `getImageResult` export to `src/services/api.js` which performs a `GET` to `${VITE_API_URL}?key=...` and returns parsed JSON. This resolves the missing-export import error and allows the upload polling flow to proceed.
+- Files changed: src/services/api.js
+
+Notes / Next steps:
+- Restart the dev server (`npm run dev`) and reload the browser to confirm the import error is resolved.
+- If any further runtime errors appear, copy the exact console error text into this file and re-run the debug checklist.
+
+---
+
+2026-04-10T10:05:00Z — Added GET endpoint and dev proxy for `/images/{fileName+}`
+- Context: Backend was extended with a GET route `https://6iy1nvu4cl.execute-api.us-east-1.amazonaws.com/images/{fileName+}` to fetch processing results by file name.
+- Symptom: Frontend previously polled an incorrect URL (query param) and sometimes attempted PUT to `/undefined` when the upload URL or key was missing.
+- Action taken:
+	- Updated `src/services/api.js` to call the new GET endpoint at `/images/{fileName}` using the API origin and to handle missing keys.
+	- Added a Vite dev proxy in `vite.config.js` so dev requests to `/images/*` are forwarded to `https://6iy1nvu4cl.execute-api.us-east-1.amazonaws.com` (avoids CORS and makes local dev mirror production paths).
+- Files changed: src/services/api.js, vite.config.js
+- Verification: Restart dev server (`npm run dev`) and confirm Network tab shows requests to `/images/<fileName>` proxied to the API origin and returning expected JSON.
+
+Notes:
+- If you use a different API origin in other environments, ensure `VITE_API_URL` and the proxy target are kept in sync or adapt the proxy only for local development.
+- If requests still show `/undefined`, re-check the normalized `getUploadUrl` response (`raw` field) to confirm the backend is returning the expected `key`/`fileName` value.
+
+---
+
+2026-04-10T10:30:00Z — S3 CORS configured to allow local dev uploads
+- Context: Browser OPTIONS preflight to presigned S3 PUT returned 403 and lacked CORS headers, blocking uploads during development.
+- Action taken: Applied S3 bucket CORS allowing `http://localhost:5173` (and production origin when needed). The S3 CORS must be provided as a JSON array (single top-level array of rules) in the S3 console or via `aws s3api`.
+
+Example CORS JSON (save as `cors.json`):
+[
+	{
+		"AllowedOrigins": ["http://localhost:5173"],
+		"AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
+		"AllowedHeaders": ["*"],
+		"ExposeHeaders": ["ETag"],
+		"MaxAgeSeconds": 3000
+	}
+]
+
+CLI to apply (replace bucket name if different):
+```
+aws s3api put-bucket-cors --bucket ai-image-tagging-uploads --cors-configuration file://cors.json
+```
+
+- Verification: after saving CORS, retry the preflight (replace `<PRESIGNED_PUT_URL>`):
+```
+curl -i -X OPTIONS "<PRESIGNED_PUT_URL>" \
+	-H "Origin: http://localhost:5173" \
+	-H "Access-Control-Request-Method: PUT"
+```
+- Expected: 200/204 and response headers include `Access-Control-Allow-Origin` and `Access-Control-Allow-Methods` (including `PUT`).
+
+Files changed: (bucket configuration applied outside repo)
+
+Notes:
+- Ensure the AWS principal applying the CORS has `s3:PutBucketCORS` permission.
+- If still failing, check for CloudFront / proxy in front of S3 that may block OPTIONS responses.
+
+---
+
+2026-04-10T11:00:00Z — Full CORS & IAM remediation steps (applied)
+- Summary: Resolved browser OPTIONS preflight 403 when uploading to presigned S3 URLs by adding a valid S3 CORS configuration, verifying preflight, and ensuring the AWS principal has the correct S3 permissions. Added a dev Vite proxy for `/images/*` and updated frontend handling to normalize presigned responses.
+
+What was added to the repo / actions performed:
+- `cors.json` (S3 CORS configuration) — must be uploaded to the bucket or applied via the AWS CLI
+- `s3-perms.json` (IAM policy JSON) — minimal permissions used for backend/administrator
+- Vite proxy: `/images/*` proxied to `https://6iy1nvu4cl.execute-api.us-east-1.amazonaws.com` in `vite.config.js`
+- `src/services/api.js` updated to normalize presigned upload responses and to call `/images/{fileName}` for polling results
+
+Exact CORS JSON (copy/paste into S3 console or save as `cors.json` and apply with CLI):
+[
+	{
+		"AllowedOrigins": ["http://localhost:5173"],
+		"AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
+		"AllowedHeaders": ["*"],
+		"ExposeHeaders": ["ETag"],
+		"MaxAgeSeconds": 3000
+	}
+]
+
+Apply via AWS CLI (replace bucket name if different):
+```
+aws s3api put-bucket-cors --bucket ai-image-tagging-uploads --cors-configuration file://cors.json
+```
+
+Minimal IAM policy (save as `s3-perms.json` in repo root; already added):
+```
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "AllowCORSConfiguration",
+			"Effect": "Allow",
+			"Action": ["s3:PutBucketCORS","s3:GetBucketCORS"],
+			"Resource": "arn:aws:s3:::ai-image-tagging-uploads"
+		},
+		{
+			"Sid": "AllowObjectOperations",
+			"Effect": "Allow",
+			"Action": ["s3:PutObject","s3:GetObject","s3:DeleteObject"],
+			"Resource": "arn:aws:s3:::ai-image-tagging-uploads/*"
+		},
+		{
+			"Sid": "AllowListBucket",
+			"Effect": "Allow",
+			"Action": ["s3:ListBucket"],
+			"Resource": "arn:aws:s3:::ai-image-tagging-uploads"
+		}
+	]
+}
+```
+
+Create a managed policy and attach it (example commands):
+```
+aws iam create-policy --policy-name AIImageTaggingS3Minimal --policy-document file://s3-perms.json
+aws iam attach-user-policy --user-name YOUR_IAM_USER --policy-arn arn:aws:iam::ACCOUNT_ID:policy/AIImageTaggingS3Minimal
+```
+Or attach to a role:
+```
+aws iam attach-role-policy --role-name YOUR_ROLE --policy-arn arn:aws:iam::ACCOUNT_ID:policy/AIImageTaggingS3Minimal
+```
+
+Verification (preflight test):
+1) Get a presigned PUT URL from the app (or backend).
+2) Run:
+```
+curl -i -X OPTIONS "<PRESIGNED_PUT_URL>" \
+	-H "Origin: http://localhost:5173" \
+	-H "Access-Control-Request-Method: PUT"
+```
+3) Expected response: 200/204 and headers include `Access-Control-Allow-Origin: http://localhost:5173` (or `*`) and `Access-Control-Allow-Methods` containing `PUT`.
+
+Notes and gotchas:
+- The S3 console expects a top-level JSON array (not a wrapped object). Use the array form shown above.
+- Do not paste IAM policy JSON into the S3 CORS editor — that was the earlier mistake. CORS editor only accepts the CORS array JSON.
+- If your S3 bucket is behind CloudFront or a different proxy, ensure the proxy forwards OPTIONS and CORS headers unchanged.
+- Wait a few seconds after applying CORS before retrying; S3 CORS changes propagate quickly but may take a moment.
+- Prefer attaching `s3:PutBucketCORS` only to an admin or CI user that manages buckets; attach object-level permissions (`s3:PutObject`) to your backend role (Lambda, ECS task, etc.) that generates presigned URLs.
+
+If this still fails after applying the JSON above, paste the exact `curl -i` preflight output (headers and status) here and I'll diagnose.
