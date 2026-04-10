@@ -1,4 +1,5 @@
 # AI-Image-Tagging-Serverless-Project
 
-<img width="1185" height="575" alt="image" src="https://github.com/user-attachments/assets/8c151b30-ca74-47c1-bc68-6b7d5996dc3f" />
+<img width="1179" height="623" alt="image" src="https://github.com/user-attachments/assets/3550c084-fda4-41bd-b376-c11c3cbf0742" />
+
 
