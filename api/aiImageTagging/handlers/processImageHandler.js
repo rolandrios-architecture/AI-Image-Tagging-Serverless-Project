@@ -1,25 +1,15 @@
+
 const { processImageRecognitionService } = require('../services/imageRecognitionService.js');
 const { getObject, getObjectBytes, deleteObject } = require('../services/s3Service.js');
 const { saveImageTags, saveImageResult } = require('../services/dynamoService.js');
 const { success, error: errorResponse } = require('../utils/responseUtils.js');
 const { generateDescription } = require("../services/bedrockService.js");
-const { sendToAllConnections } = require("../utils/websocket.js");
 const { isValidImage } = require("../security/fileValidation.js");
-const { filterLabels, filterLabelsWithConfidence } = require('../domain/labelFilter');
+const { filterLabelsWithConfidence } = require('../domain/labelFilter');
 const { handleProcessingError } = require('../services/errorHandlingService.js');
+const { notifyProcessed } = require('../services/notificationService.js');
 
-// Helper: remove the S3 object and notify websocket clients
-const handleInvalidFile = async ({ bucket, key }) => {
-    await deleteObject({ bucket, key });
 
-    await sendToAllConnections(
-        {
-            status: 'error',
-            message: 'Invalid file type',
-        },
-        process.env.WS_ENDPOINT
-    );
-};
 
 const sanitizeForDynamo = (value) => {
     if (value === undefined) {
@@ -186,20 +176,3 @@ const fetchAiData = async (labels) => {
     }
 };
 
-// Helper: notify websocket clients a file was processed
-const notifyProcessed = async ({ fileName, labels, description = '', tags = [] }) => {
-    try {
-        await sendToAllConnections(
-            {
-                status: 'processed',
-                fileName,
-                labels,
-                description,
-                tags,
-            },
-            process.env.WS_ENDPOINT
-        );
-    } catch (err) {
-        console.error('Failed to notify clients:', err?.message || err);
-    }
-};

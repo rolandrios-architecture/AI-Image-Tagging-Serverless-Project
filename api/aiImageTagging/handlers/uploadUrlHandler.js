@@ -7,6 +7,12 @@ const {
 } = require('../utils/validationUtils.js');
 
 exports.uploadUrlHandler = async (event) => {
+    // Handle preflight OPTIONS for HTTP API and REST API
+    const method = (event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || '').toUpperCase();
+    if (method === 'OPTIONS') {
+        return success({});
+    }
+
     try {
         const body = parseBody(event);
 
@@ -21,7 +27,7 @@ exports.uploadUrlHandler = async (event) => {
         const errorMap = {
             "INVALID_JSON": "Invalid JSON",
             "MISSING_FIELDS": "fileName and fileType are required",
-            "INVALID_FILE_TY PE": "Invalid fileType",
+            "INVALID_FILE_TYPE": "Invalid fileType",
             "BUCKET_NOT_CONFIGURED": "S3 bucket is not configured"
         };
 

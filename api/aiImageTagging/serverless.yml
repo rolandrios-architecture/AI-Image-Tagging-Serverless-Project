@@ -6,77 +6,82 @@ service: aiImageTagging
 provider:
   name: aws
   runtime: nodejs24.x
+  httpApi:
+    cors:
+      allowedOrigins:
+        - 'http://localhost:5173'
+        - 'http://localhost:5174'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - X-Amz-Date
+        - X-Api-Key
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+      allowCredentials: false
   environment:
     REGION: us-east-1
     BUCKET_NAME: ai-image-tagging-uploads
     DYNAMODB_NAME: image-results-table
-    CONNECTIONS_TABLE_NAME: websocket-connections
     SNS_TOPIC_ARN:
       Ref: ErrorTopic
-    WS_ENDPOINT:
-      Fn::Join:
-        - ""
-        - - "https://"
-          - Ref: WebsocketsApi
-          - ".execute-api."
-          - ${self:provider.environment.REGION}
-          - ".amazonaws.com/dev"
   iamRoleStatements:
-    - Effect: 'Allow'
-      Action:
-        - s3:PutObject
-        - s3:GetObject
-        - s3:DeleteObject
-      Resource: arn:aws:s3:::ai-image-tagging-uploads/*
-    - Effect: 'Allow'
-      Action:
-        - rekognition:DetectLabels
-      Resource: '*'
-    - Effect: Allow
-      Action:
-        - bedrock:InvokeModel
-      Resource: "*"
-    - Effect: Allow
-      Action:
-        - dynamodb:PutItem
-      Resource:
-        - arn:aws:dynamodb:us-east-1:506587498790:table/image-results-table
-    - Effect: Allow
-      Action:
-        - dynamodb:PutItem
-        - dynamodb:DeleteItem
-        - dynamodb:Scan
-      Resource:
-        - arn:aws:dynamodb:us-east-1:506587498790:table/websocket-connections
-    - Effect: Allow
-      Action:
-        - execute-api:ManageConnections
-      Resource:
-        - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$connect
-        - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$default
-        - arn:aws:execute-api:us-east-1:506587498790:a7ocka370e/*/$disconnect
-    - Effect: Allow
-      Action:
-        - sns:Publish
-      Resource:
-        - Ref: ErrorTopic
+  - Effect: 'Allow'
+    Action:
+      - s3:PutObject
+      - s3:GetObject
+      - s3:DeleteObject
+    Resource: arn:aws:s3:::ai-image-tagging-uploads/*
+
+  - Effect: 'Allow'
+    Action:
+      - s3:PutBucketCORS
+      - s3:GetBucketCORS
+    Resource: arn:aws:s3:::ai-image-tagging-uploads
+
+  - Effect: 'Allow'
+    Action:
+      - rekognition:DetectLabels
+    Resource: '*'
+
+  - Effect: 'Allow'
+    Action:
+      - bedrock:InvokeModel
+    Resource: "*"
+
+  - Effect: 'Allow'
+    Action:
+      - dynamodb:PutItem
+      - dynamodb:UpdateItem
+      - dynamodb:GetItem
+    Resource:
+      - arn:aws:dynamodb:us-east-1:506587498790:table/image-results-table
+
+  - Effect: 'Allow'
+    Action:
+      - sns:Publish
+    Resource:
+      - Ref: ErrorTopic
 resources:
   Resources:
     BannerImagesBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ai-image-tagging-uploads
-    WebSocketConnectionsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: websocket-connections
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: connectionId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: connectionId
-            KeyType: HASH
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - 'http://localhost:5173'
+                - 'http://localhost:5174'
+              AllowedMethods:
+                - PUT
+                - POST
+                - GET
+                - HEAD
+              AllowedHeaders:
+                - '*'
     ImageResultsTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -106,25 +111,17 @@ functions:
       - httpApi:
           path: /upload-image
           method: post
+          # CORS is configured at provider.httpApi.cors
   getImageLabels:
     handler: handlers/processImageHandler.processImageRecognition
     events:
       - s3:
           bucket: ai-image-tagging-uploads
           event: s3:ObjectCreated:*
-          existing: true
-  wsConnect:
-    handler: handlers/wsConnectHandler.connectHandler
+          existing: true 
+  getImage:
+    handler: handlers/getImageHandler.getImage
     events:
-      - websocket:
-          route: $connect
-  wsDisconnect:
-    handler: handlers/wsDisconnectHandler.disconnectHandler
-    events:
-      - websocket:
-          route: $disconnect
-  wsDefault:
-    handler: handlers/wsDefaultHandler.defaultHandler
-    events:
-      - websocket:
-          route: $default
+      - httpApi:
+          path: /images/{fileName+}
+          method: get
