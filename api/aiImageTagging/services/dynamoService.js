@@ -39,7 +39,12 @@ exports.saveInitialImage = async ({ fileName, imageUrl }) => {
 
     if (!tableName) throw new Error("DYNAMODB_NAME_NOT_CONFIGURED");
 
-    const now = new Date().toISOString();
+
+    const now = new Date();
+    const nowISOString = now.toISOString();
+    // Set TTL to 1 day from now (in seconds)
+    // This field is used by DynamoDB's Time To Live (TTL) feature to auto-delete items
+    const ttlSeconds = Math.floor(now.getTime() / 1000) + 1 * 24 * 60 * 60;
 
     const item = {
         fileName: { S: fileName },
@@ -51,8 +56,9 @@ exports.saveInitialImage = async ({ fileName, imageUrl }) => {
         tags: { L: [] },
         labels: { L: [] },
 
-        createdAt: { S: now },
-        updatedAt: { S: now }
+        createdAt: { S: nowISOString },
+        updatedAt: { S: nowISOString },
+        ttl: { N: ttlSeconds.toString() }
     };
 
     await client.send(new PutItemCommand({
@@ -77,6 +83,11 @@ exports.updateImageResult = async ({
         .map(toTagAttribute)
         .filter(Boolean);
 
+    // Set TTL to 1 day from now (in seconds)
+    // This field is used by DynamoDB's Time To Live (TTL) feature to auto-delete items
+    const now = new Date();
+    const ttlSeconds = Math.floor(now.getTime() / 1000) + 1 * 24 * 60 * 60;
+
     await client.send(new UpdateItemCommand({
         TableName: tableName,
         Key: {
@@ -87,17 +98,20 @@ exports.updateImageResult = async ({
                 description = :description,
                 tags = :tags,
                 labels = :labels,
-                updatedAt = :updatedAt
+                updatedAt = :updatedAt,
+                #ttl = :ttl
         `,
         ExpressionAttributeNames: {
-            "#status": "status"
+            "#status": "status",
+            "#ttl": "ttl"
         },
         ExpressionAttributeValues: {
             ":status": { S: "done" },
             ":description": { S: description || '' },
             ":tags": { L: safeTags },
             ":labels": formatLabels(labels),
-            ":updatedAt": { S: new Date().toISOString() }
+            ":updatedAt": { S: now.toISOString() },
+            ":ttl": { N: ttlSeconds.toString() }
         }
     }));
 };
@@ -107,6 +121,11 @@ exports.updateImageResult = async ({
 exports.updateImageStatus = async ({ fileName, status }) => {
     const tableName = process.env.DYNAMODB_NAME;
 
+    // Set TTL to 1 day from now (in seconds)
+    // This field is used by DynamoDB's Time To Live (TTL) feature to auto-delete items
+    const now = new Date();
+    const ttlSeconds = Math.floor(now.getTime() / 1000) + 1 * 24 * 60 * 60;
+
     await client.send(new UpdateItemCommand({
         TableName: tableName,
         Key: {
@@ -114,14 +133,17 @@ exports.updateImageStatus = async ({ fileName, status }) => {
         },
         UpdateExpression: `
             SET #status = :status,
-                updatedAt = :updatedAt
+                updatedAt = :updatedAt,
+                #ttl = :ttl
         `,
         ExpressionAttributeNames: {
-            "#status": "status"
+            "#status": "status",
+            "#ttl": "ttl"
         },
         ExpressionAttributeValues: {
             ":status": { S: status },
-            ":updatedAt": { S: new Date().toISOString() }
+            ":updatedAt": { S: now.toISOString() },
+            ":ttl": { N: ttlSeconds.toString() }
         }
     }));
 };
@@ -159,7 +181,10 @@ exports.getImageByFileName = async (fileName) => {
         labels: item.labels?.L?.map(l => ({
             name: l.M.name.S,
             confidence: Number(l.M.confidence.N)
-        })) || []
+        })) || [],
+        createdAt: item.createdAt?.S,
+        updatedAt: item.updatedAt?.S,
+        ttl: item.ttl?.N ? Number(item.ttl.N) : undefined
     };
 };
 

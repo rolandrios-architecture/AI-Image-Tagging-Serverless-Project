@@ -25,8 +25,8 @@ provider:
     REGION: us-east-1
     BUCKET_NAME: ai-image-tagging-uploads
     DYNAMODB_NAME: image-results-table
-    SNS_TOPIC_ARN:
-      Ref: ErrorTopic
+    # SNS topic ARN for error notifications (used by error handling service)
+    SNS_TOPIC_ARN: arn:aws:sns:us-east-1:506587498790:image-processing-errors
   iamRoleStatements:
   - Effect: 'Allow'
     Action:
