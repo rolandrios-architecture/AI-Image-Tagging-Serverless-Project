@@ -1,0 +1,33 @@
+name: Dev Frontend pipeline
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'web/**'
+
+jobs:
+  frontend-ci:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: web/ai-image-tagging-frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run lint
+        run: npm run lint || echo "Lint warnings"
+
+      - name: Build project
+        run: npm run build
