@@ -31,8 +31,8 @@ export default defineConfig(({ command }) => {
             let body = '';
             for await (const chunk of req) body += chunk;
             const data = JSON.parse(body || '{}');
-            // Use import.meta.env.BASE_URL or fallback to cwd for docsPath
-            const docsPath = path.resolve(process.cwd ? process.cwd() : '.', 'docs', 'ERRORS.txt');
+            // Use project-relative path for docsPath (no process)
+            const docsPath = path.resolve('.', 'docs', 'ERRORS.txt');
             const lines = [];
             const time = new Date().toISOString();
             lines.push(`${time} — ${data.title || 'Error'}`);
