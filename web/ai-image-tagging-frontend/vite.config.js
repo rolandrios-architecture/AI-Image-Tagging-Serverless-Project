@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 
 // https://vite.dev/config/
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ command }) => {
   const config = {
     plugins: [react()],
   };
@@ -31,7 +31,8 @@ export default defineConfig(({ command, mode }) => {
             let body = '';
             for await (const chunk of req) body += chunk;
             const data = JSON.parse(body || '{}');
-            const docsPath = path.resolve(process.cwd(), 'docs', 'ERRORS.txt');
+            // Use import.meta.env.BASE_URL or fallback to cwd for docsPath
+            const docsPath = path.resolve(process.cwd ? process.cwd() : '.', 'docs', 'ERRORS.txt');
             const lines = [];
             const time = new Date().toISOString();
             lines.push(`${time} — ${data.title || 'Error'}`);

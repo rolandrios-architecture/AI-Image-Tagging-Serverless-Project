@@ -4,8 +4,8 @@ const API_UPLOAD_ENDPOINT = import.meta.env.VITE_API_UPLOAD_ENDPOINT;
 // Debug: expose env values when loaded
 try {
   console.debug('api.js initialized with', { API_URL, API_UPLOAD_ENDPOINT });
-} catch (e) {
-  // ignore in environments without console
+} catch (err) {
+  console.error('api.js env debug error:', err);
 }
 // 1. POST → obtener presigned URL
 export const getUploadUrl = async (file) => {
@@ -61,7 +61,7 @@ export const uploadToS3 = async (uploadUrl, file) => {
   if (!res.ok) {
     // try to read response body for debugging
     let txt = '';
-    try { txt = await res.text(); } catch (e) { txt = String(e); }
+    try { txt = await res.text(); } catch (err) { txt = String(err); }
     console.error('uploadToS3 failed', res.status, txt);
     throw new Error("S3 upload failed: " + txt);
   }
@@ -77,7 +77,8 @@ export const getImageResult = async (key) => {
   let base;
   try {
     base = new URL(API_URL).origin;
-  } catch (e) {
+  } catch (err) {
+    console.error('getImageResult base URL error:', err);
     base = API_URL.replace(/\/upload-image.*$/, "");
   }
 
@@ -105,8 +106,8 @@ export const getImageResult = async (key) => {
     const json = await res.json();
     console.debug('getImageResult response:', json);
     return json;
-  } catch (e) {
-    console.error('getImageResult parse error', e);
+  } catch (err) {
+    console.error('getImageResult parse error', err);
     throw new Error("Failed to parse image result JSON");
   }
 };
