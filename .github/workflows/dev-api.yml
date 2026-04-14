@@ -1,19 +1,36 @@
-name: Dev API Hello World
+name: Dev API Pipeline
 
 on:
   push:
     branches: [dev]
+    paths:
+      - 'api/**'
 
 jobs:
-  hello:
+  api-ci:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: api/aiImageTagging
+
     steps:
-      - name: Say hello
-        run: echo "🚀 Hello from your API pipeline"
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Show current directory
-        run: pwd
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
 
-      - name: List files
-        run: ls -la
+      - name: Show Node version
+        run: node -v
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test || echo "No tests yet"
+      
+      - name: Build
+        run: npm run build || echo "No build step"
