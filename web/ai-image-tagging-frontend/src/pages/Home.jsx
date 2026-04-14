@@ -13,9 +13,9 @@ function Home({ status, setStatus, image, setImage, result, setResult }) {
         />
       )}
 
-      {status === "UPLOADING" && <Loader text="Uploading..." />}
+      {status === "UPLOADING" && <Loader text="Uploading image..." />}
 
-      {status === "PROCESSING" && <Loader text="Analyzing..." />}
+      {status === "PROCESSING" && <Loader text="Analyzing content..." />}
 
       {status === "DONE" && result && (
         <ResultPanel
