@@ -4,7 +4,7 @@ exports.parseBody = (event) => {
     } catch (error) {
         console.error('Error parsing request body:', error);
         // Throw a short code the handler expects so it can map to a 400 response
-        throw new Error('INVALID_JSON');
+        throw new Error('INVALID_JSON', { cause: error });
     }
 }
 
