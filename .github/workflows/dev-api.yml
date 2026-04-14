@@ -1,0 +1,19 @@
+name: Dev API Hello World
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Say hello
+        run: echo "🚀 Hello from your API pipeline"
+
+      - name: Show current directory
+        run: pwd
+
+      - name: List files
+        run: ls -la
