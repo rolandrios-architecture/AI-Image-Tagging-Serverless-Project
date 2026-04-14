@@ -1,7 +1,5 @@
 # AI-Image-Tagging-Serverless-Project
 
-<img width="1179" height="623" alt="image" src="https://github.com/user-attachments/assets/3550c084-fda4-41bd-b376-c11c3cbf0742" />
-
 ## Architecture Overview
 
 This project uses a modern, serverless architecture on AWS to provide scalable, automated AI image tagging and metadata generation. The main components and flow are:
@@ -89,4 +87,7 @@ This project implements a full-stack, event-driven AI image tagging system using
 
 This architecture ensures scalability, cost-efficiency, and rapid iteration, leveraging AWS managed services and modern frontend tooling.
 
+---
+### Architecture
+<img width="1179" height="623" alt="image" src="https://github.com/user-attachments/assets/3550c084-fda4-41bd-b376-c11c3cbf0742" />
 
