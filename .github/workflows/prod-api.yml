@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '20.19'
 
       - name: Install dependencies
         run: npm install
@@ -37,7 +37,7 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Install Serverless
-        run: npm install -g serverless
+        run: npm install -g serverless@3
 
       - name: Deploy API (PROD)
         run: serverless deploy --stage prod
