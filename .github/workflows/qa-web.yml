@@ -9,6 +9,7 @@ on:
 
 jobs:
   qa-web:
+    name: QA Web Pipeline
     runs-on: ubuntu-latest
 
     defaults:
