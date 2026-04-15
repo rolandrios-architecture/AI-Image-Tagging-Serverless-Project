@@ -10,11 +10,14 @@ test('Upload image flow', async ({ page, baseURL }) => {
   // providing a defensive URL constructor that falls back to the current origin.
   await page.addInitScript(() => {
     const NativeURL = window.URL;
-    // eslint-disable-next-line func-name-matching, func-names
     window.URL = function (url, base) {
       try {
         return new NativeURL(url, base);
-      } catch (e) {
+      } catch (err) {
+        // keep a minimal warning so the test runner can surface the fallback
+        // and to avoid unused var ESLint errors
+        // eslint-disable-next-line no-console
+        console.warn('URL fallback in test init', err);
         return { origin: window.location.origin };
       }
     };
@@ -81,11 +84,12 @@ test('Uploading an invalid file type shows error and does not call S3', async ({
 
   await page.addInitScript(() => {
     const NativeURL = window.URL;
-    // eslint-disable-next-line func-name-matching, func-names
     window.URL = function (url, base) {
       try {
         return new NativeURL(url, base);
-      } catch (e) {
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('URL fallback in test init', err);
         return { origin: window.location.origin };
       }
     };
@@ -132,11 +136,12 @@ test('API failure during upload results in error handling', async ({ page, baseU
 
   await page.addInitScript(() => {
     const NativeURL = window.URL;
-    // eslint-disable-next-line func-name-matching, func-names
     window.URL = function (url, base) {
       try {
         return new NativeURL(url, base);
-      } catch (e) {
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('URL fallback in test init', err);
         return { origin: window.location.origin };
       }
     };
@@ -178,11 +183,12 @@ test('Empty upload attempt does nothing', async ({ page, baseURL }) => {
 
   await page.addInitScript(() => {
     const NativeURL = window.URL;
-    // eslint-disable-next-line func-name-matching, func-names
     window.URL = function (url, base) {
       try {
         return new NativeURL(url, base);
-      } catch (e) {
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('URL fallback in test init', err);
         return { origin: window.location.origin };
       }
     };
