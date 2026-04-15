@@ -80,3 +80,5 @@ Notes:
 
 Status: `.gitignore` added on 2026-04-14; follow the steps above to remove the committed large file from the repo and push.
 
+Note: Updated `.gitignore` to explicitly ignore `infra/frontend/.terraform/` and provider binaries on 2026-04-14.
+
