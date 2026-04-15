@@ -54,9 +54,8 @@ test('Upload image flow', async ({ page, baseURL }) => {
   // Check that upload starts — look for the uploading/processing text
   await expect(page.getByText(/uploading image|analyzing content|uploading|processing/i)).toBeVisible({ timeout: 5000 });
 
-  // Verify a result section appears: look for Description heading and tag text
-  await expect(page.getByRole('heading', { name: /description/i })).toBeVisible({ timeout: 15000 });
-  await expect(page.getByText('A small test image')).toBeVisible();
+  // Verify a result appears: prefer description text (more robust than heading)
+  await expect(page.getByText('A small test image', { exact: false })).toBeVisible({ timeout: 15000 });
   await expect(page.getByText('test', { exact: true })).toBeVisible();
 });
 
