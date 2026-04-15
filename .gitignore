@@ -1,0 +1,40 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*.tfvars
+*.tfvars.json
+terraform.tfvars
+terraform.tfvars.json
+*.tfplan
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Secrets
+*.pem
+.env
+.env.*
+
+# Ignore provider binaries and plugins
+**/.terraform/providers/
+
+# Ignore local and user-specific files
+*.local

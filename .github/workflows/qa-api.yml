@@ -10,6 +10,7 @@ on:
 jobs:
   qa-api:
     runs-on: ubuntu-latest
+    environment: qa  
 
     defaults:
       run:
@@ -40,6 +41,5 @@ jobs:
         env:
           API_URL: ${{ secrets.API_URL }}
 
-      # 🔐 Security
       - name: Security audit
         run: npm audit --audit-level=high
