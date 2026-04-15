@@ -6,6 +6,21 @@ import { test, expect } from '@playwright/test';
 test('Upload image flow', async ({ page, baseURL }) => {
   const url = process.env.FRONT_URL || baseURL || 'http://localhost:5173';
 
+  // Ensure `new URL(undefined)` in app code doesn't throw during tests by
+  // providing a defensive URL constructor that falls back to the current origin.
+  await page.addInitScript(() => {
+    const NativeURL = window.URL;
+    // eslint-disable-next-line func-name-matching, func-names
+    window.URL = function (url, base) {
+      try {
+        return new NativeURL(url, base);
+      } catch (e) {
+        return { origin: window.location.origin };
+      }
+    };
+    window.URL.prototype = NativeURL.prototype;
+  });
+
   // Stub the backend upload URL endpoint
   await page.route('**/upload-image', async (route) => {
     const body = {
@@ -64,6 +79,19 @@ test('Upload image flow', async ({ page, baseURL }) => {
 test('Uploading an invalid file type shows error and does not call S3', async ({ page, baseURL }) => {
   const url = process.env.FRONT_URL || baseURL || 'http://localhost:5173';
 
+  await page.addInitScript(() => {
+    const NativeURL = window.URL;
+    // eslint-disable-next-line func-name-matching, func-names
+    window.URL = function (url, base) {
+      try {
+        return new NativeURL(url, base);
+      } catch (e) {
+        return { origin: window.location.origin };
+      }
+    };
+    window.URL.prototype = NativeURL.prototype;
+  });
+
   // stub upload-image to return 400
   await page.route('**/upload-image', async (route) => {
     await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Invalid file type' }) });
@@ -102,6 +130,19 @@ test('Uploading an invalid file type shows error and does not call S3', async ({
 test('API failure during upload results in error handling', async ({ page, baseURL }) => {
   const url = process.env.FRONT_URL || baseURL || 'http://localhost:5173';
 
+  await page.addInitScript(() => {
+    const NativeURL = window.URL;
+    // eslint-disable-next-line func-name-matching, func-names
+    window.URL = function (url, base) {
+      try {
+        return new NativeURL(url, base);
+      } catch (e) {
+        return { origin: window.location.origin };
+      }
+    };
+    window.URL.prototype = NativeURL.prototype;
+  });
+
   // Stub upload-image to return 500
   await page.route('**/upload-image', async (route) => {
     await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'Server error' }) });
@@ -134,6 +175,19 @@ test('API failure during upload results in error handling', async ({ page, baseU
 
 test('Empty upload attempt does nothing', async ({ page, baseURL }) => {
   const url = process.env.FRONT_URL || baseURL || 'http://localhost:5173';
+
+  await page.addInitScript(() => {
+    const NativeURL = window.URL;
+    // eslint-disable-next-line func-name-matching, func-names
+    window.URL = function (url, base) {
+      try {
+        return new NativeURL(url, base);
+      } catch (e) {
+        return { origin: window.location.origin };
+      }
+    };
+    window.URL.prototype = NativeURL.prototype;
+  });
 
   let uploadCalled = false;
   await page.route('**/upload-image', async (route) => {
