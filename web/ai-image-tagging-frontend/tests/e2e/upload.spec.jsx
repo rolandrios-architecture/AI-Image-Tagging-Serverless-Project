@@ -1,3 +1,6 @@
+/* eslint-env node, browser */
+/* global Buffer, process */
+
 import { test, expect } from '@playwright/test';
 
 test('Upload image flow', async ({ page, baseURL }) => {

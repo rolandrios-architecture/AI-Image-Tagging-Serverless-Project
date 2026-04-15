@@ -29,7 +29,7 @@ exports.detectImageType = (buffer) => {
         const imageType = require('image-type');
         const info = imageType(buffer);
         return info ? info.mime : null;
-    } catch (err) {
+    } catch {
         // image-type not installed or other error; return null so callers may choose fallback
         return null;
     }
@@ -42,7 +42,7 @@ exports.sanitizeImage = async (buffer) => {
     try {
         imageType = require('image-type');
     } catch (err) {
-        throw new Error('Optional package "image-type" is not installed');
+        throw new Error('Optional package "image-type" is not installed', { cause: err });
     }
 
     const info = imageType(buffer);
@@ -58,7 +58,7 @@ exports.sanitizeImage = async (buffer) => {
     try {
         sharp = require('sharp');
     } catch (err) {
-        throw new Error('Optional package "sharp" is not installed');
+        throw new Error('Optional package "sharp" is not installed', { cause: err });
     }
 
     let outBuffer;

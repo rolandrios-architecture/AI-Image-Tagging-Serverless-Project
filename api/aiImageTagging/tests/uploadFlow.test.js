@@ -2,7 +2,7 @@
 // These tests call the running endpoint specified by `API_URL`.
 
 const fetch = globalThis.fetch || (() => {
-	try { return require('node-fetch'); } catch (e) { return null; }
+	try { return require('node-fetch'); } catch { return null; }
 })();
 
 // Default to the deployed API endpoint if `API_URL` isn't provided.
