@@ -54,8 +54,10 @@ test('Upload image flow', async ({ page, baseURL }) => {
   // Check that upload starts — look for the uploading/processing text
   await expect(page.getByText(/uploading image|analyzing content|uploading|processing/i)).toBeVisible({ timeout: 5000 });
 
-  // Verify a result appears: prefer description text (more robust than heading)
-  await expect(page.getByText('A small test image', { exact: false })).toBeVisible({ timeout: 15000 });
+  // Wait for the ResultPanel container (stable marker) then assert content
+  const resultContainer = page.locator('.result-container');
+  await expect(resultContainer).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('A small test image', { exact: false })).toBeVisible();
   await expect(page.getByText('test', { exact: true })).toBeVisible();
 });
 
