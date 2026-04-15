@@ -40,3 +40,43 @@ terraform validate
 terraform apply
 ```
 
+5) Error: Git push rejected — large file committed
+Message: remote: error: File infra/frontend/.terraform/providers/registry.terraform.io/hashicorp/aws/6.40.0/windows_amd64/terraform-provider-aws_v6.40.0_x5.exe is 842.68 MB; this exceeds GitHub's file size limit of 100.00 MB
+Cause: A Terraform provider binary was committed into the repository under `.terraform/providers/...`. GitHub rejects files larger than 100MB.
+Immediate solution applied: Added a `.gitignore` at the repo root to exclude `.terraform/` and provider binaries.
+Further remediation (required because the large file is already committed): remove the file from the index/history and force-push or use a history rewrite tool.
+
+Safe steps to remove the file from the latest commit and push:
+
+```bash
+# remove from index (keeps local file)
+git rm --cached infra/frontend/.terraform/providers/registry.terraform.io/hashicorp/aws/6.40.0/windows_amd64/terraform-provider-aws_v6.40.0_x5.exe
+git commit -m "Remove committed Terraform provider binary"
+git push origin qa
+```
+
+If the file exists earlier in the repository history (so it's still in the git objects), purge it from all history (recommended) using `git filter-repo` or the BFG repo cleaner. Example with `git filter-repo`:
+
+```bash
+# install git-filter-repo (if needed) then:
+git clone --mirror https://github.com/berserker1996/AI-Image-Tagging-Serverless-Project.git
+cd AI-Image-Tagging-Serverless-Project.git
+git filter-repo --path infra/frontend/.terraform/providers/registry.terraform.io/hashicorp/aws/6.40.0/windows_amd64/terraform-provider-aws_v6.40.0_x5.exe --invert-paths
+git push --force
+```
+
+Or use BFG:
+
+```bash
+bfg --delete-files 'terraform-provider-aws_v6.40.0_x5.exe' AI-Image-Tagging-Serverless-Project.git
+cd AI-Image-Tagging-Serverless-Project.git
+git reflog expire --expire=now --all && git gc --prune=now --aggressive
+git push --force
+```
+
+Notes:
+- Rewriting history requires force-pushing and coordination with collaborators; they will need to reclone or reset their local clones.
+- Consider using Git LFS for large binary dependencies in future, or avoid committing `.terraform/` directories — providers should be installed during CI or by `terraform init` locally.
+
+Status: `.gitignore` added on 2026-04-14; follow the steps above to remove the committed large file from the repo and push.
+
