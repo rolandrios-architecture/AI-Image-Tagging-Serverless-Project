@@ -1,0 +1,45 @@
+name: QA API Pipeline
+
+on:
+  push:
+    branches: [qa]
+    paths:
+      - 'api/**'
+      - '.github/workflows/qa-api.yml'
+
+jobs:
+  qa-api:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: api/aiImageTagging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
+
+
+      - name: Run unit tests (Jest)
+        run: npm run test
+
+
+      - name: Run integration tests (Vitest)
+        run: npm run test:vitest
+        env:
+          API_URL: ${{ secrets.API_URL }}
+
+      # 🔐 Security
+      - name: Security audit
+        run: npm audit --audit-level=high
