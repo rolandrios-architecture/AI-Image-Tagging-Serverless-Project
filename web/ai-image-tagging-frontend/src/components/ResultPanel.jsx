@@ -6,8 +6,8 @@ function ResultPanel({ image, result, onRefresh, loading }) {
       console.log('ResultPanel - result:', result);
       console.log('Description:', result.description);
       if (result.confidence !== undefined) console.log('Confidence:', result.confidence);
-    } catch (e) {
-      // ignore logging errors
+    } catch (err) {
+      console.error('ResultPanel logging error:', err);
     }
 
     return (
@@ -20,7 +20,8 @@ function ResultPanel({ image, result, onRefresh, loading }) {
                 try {
                   const src = URL.createObjectURL(image);
                   return <img src={src} alt="preview" />;
-                } catch (e) {
+                } catch (err) {
+                  console.error('ResultPanel image preview error:', err);
                   return <p>No preview available</p>;
                 }
               })()}
@@ -59,7 +60,8 @@ function ResultPanel({ image, result, onRefresh, loading }) {
     let src = null;
     try {
       src = URL.createObjectURL(image);
-    } catch (e) {
+    } catch (err) {
+      console.error('ResultPanel image src error:', err);
       src = null;
     }
 

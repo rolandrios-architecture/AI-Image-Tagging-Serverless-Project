@@ -1,0 +1,29 @@
+{
+  "name": "aiimagetagging",
+  "version": "1.0.0",
+  "description": "Serverless API for AI-powered image tagging and metadata generation.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "image-type": "^5.0.0",
+    "sharp": "^0.32.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "audit-ci": "^7.1.0",
+    "eslint": "^10.2.0",
+    "jest": "^30.3.0",
+    "vitest": "^1.0.0"
+  },
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint .",
+    "test:vitest": "vitest run tests/uploadFlow.test.js"
+  }
+}

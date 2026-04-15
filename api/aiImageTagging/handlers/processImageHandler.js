@@ -1,10 +1,10 @@
 
 const { processImageRecognitionService } = require('../services/imageRecognitionService.js');
-const { getObject, getObjectBytes, deleteObject } = require('../services/s3Service.js');
+const { getObject, getObjectBytes } = require('../services/s3Service.js');
 const { saveImageTags, saveImageResult } = require('../services/dynamoService.js');
 const { success, error: errorResponse } = require('../utils/responseUtils.js');
 const { generateDescription } = require("../services/bedrockService.js");
-const { isValidImage } = require("../security/fileValidation.js");
+const { isValidImage, validateAndSanitizeImage } = require("../security/fileValidation.js");
 const { filterLabelsWithConfidence } = require('../domain/labelFilter');
 const { handleProcessingError } = require('../services/errorHandlingService.js');
 const { notifyProcessed } = require('../services/notificationService.js');
@@ -37,6 +37,8 @@ const processImage = async ({ bucket, key }) => {
     console.log('Step 1: getObject');
     const response = await getObject({ bucket, key });
 
+
+    // Quick metadata-based validation (fast and preserves existing behavior).
     const isValid = isValidImage({
         key,
         contentType: response.ContentType,
@@ -51,8 +53,38 @@ const processImage = async ({ bucket, key }) => {
     console.log('Step 2: getObjectBytes');
     const imageBytes = await getObjectBytes(response);
 
+    // Attempt optional deep validation + sanitization (magic-bytes + re-encode).
+    // If optional packages are not installed or detection is unavailable, fall back to
+    // the previous behavior using declared contentType/size.
+    let finalImageBuffer = imageBytes;
+    if (typeof validateAndSanitizeImage === 'function') {
+        try {
+            const sanitized = await validateAndSanitizeImage({
+                key,
+                contentType: response.ContentType,
+                size: response.ContentLength,
+                buffer: imageBytes
+            });
+            finalImageBuffer = sanitized.buffer;
+            console.log('Image sanitized successfully');
+        } catch (err) {
+            const msg = (err && err.message) ? err.message : String(err);
+            // Known non-fatal reasons: optional packages missing or detection not available.
+            if (msg.includes('Optional package') || msg.includes('Could not detect image type')) {
+                console.warn('Skipping optional sanitization, falling back to declared metadata:', msg);
+                // continue with original buffer
+            } else {
+                console.warn('Sanitization failed, rejecting file:', msg);
+                await handleInvalidFile({ bucket, key });
+                return null;
+            }
+        }
+    } else {
+        console.warn('Optional sanitization helper not available; continuing with declared metadata');
+    }
+
     console.log('Step 3: processImageRecognitionService');
-    const labels = await processImageRecognitionService(imageBytes);
+    const labels = await processImageRecognitionService(finalImageBuffer);
 
     console.log('Step 4: filterLabels (preserve confidence)');
     const cleanLabels = filterLabelsWithConfidence(labels);
