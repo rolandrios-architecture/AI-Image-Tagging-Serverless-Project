@@ -1,5 +1,14 @@
-const API_URL = import.meta.env.VITE_API_URL;
-const API_UPLOAD_ENDPOINT = import.meta.env.VITE_API_UPLOAD_ENDPOINT;
+const DEFAULT_API_URL = "https://6iy1nvu4cl.execute-api.us-east-1.amazonaws.com";
+
+const normalizeUrl = (value) => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  return trimmed ? trimmed.replace(/\/+$/, "") : "";
+};
+
+const API_URL = normalizeUrl(import.meta.env.VITE_API_URL) || DEFAULT_API_URL;
+const API_UPLOAD_ENDPOINT =
+  normalizeUrl(import.meta.env.VITE_API_UPLOAD_ENDPOINT) || `${API_URL}/upload-image`;
 
 // Debug: expose env values when loaded
 try {
@@ -9,7 +18,7 @@ try {
 }
 // 1. POST → obtener presigned URL
 export const getUploadUrl = async (file) => {
-  const requestUrl = `${API_URL}/upload-image`;
+  const requestUrl = API_UPLOAD_ENDPOINT;
   console.debug('getUploadUrl -> POST', requestUrl, { fileName: file.name, fileType: file.type });
 
   const res = await fetch(requestUrl, {
