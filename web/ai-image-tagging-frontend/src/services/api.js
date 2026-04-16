@@ -6,9 +6,14 @@ const normalizeUrl = (value) => {
   return trimmed ? trimmed.replace(/\/+$/, "") : "";
 };
 
+const ensureUploadEndpoint = (value, apiBase) => {
+  const normalized = normalizeUrl(value);
+  if (!normalized) return `${apiBase}/upload-image`;
+  return /\/upload-image$/i.test(normalized) ? normalized : `${normalized}/upload-image`;
+};
+
 const API_URL = normalizeUrl(import.meta.env.VITE_API_URL) || DEFAULT_API_URL;
-const API_UPLOAD_ENDPOINT =
-  normalizeUrl(import.meta.env.VITE_API_UPLOAD_ENDPOINT) || `${API_URL}/upload-image`;
+const API_UPLOAD_ENDPOINT = ensureUploadEndpoint(import.meta.env.VITE_API_UPLOAD_ENDPOINT, API_URL);
 
 // Debug: expose env values when loaded
 try {
@@ -39,7 +44,14 @@ export const getUploadUrl = async (file) => {
   }
 
   // Normalize backend response shapes to a common { data: { uploadUrl, key } }
-  const body = await res.json();
+  const rawText = await res.text();
+  let body;
+  try {
+    body = JSON.parse(rawText);
+  } catch (err) {
+    console.error('getUploadUrl non-JSON response', rawText);
+    throw new Error(`Upload endpoint returned non-JSON response: ${rawText.slice(0, 200)}`);
+  }
   console.debug('getUploadUrl response body:', body);
 
   // Common locations for upload URL and key
@@ -80,16 +92,9 @@ export const uploadToS3 = async (uploadUrl, file) => {
 export const getImageResult = async (key) => {
   if (!key) throw new Error("getImageResult: missing key/fileName");
 
-  // Construct the GET URL for the images resource. We use the origin of
-  // `VITE_API_URL` and append the `/images/{fileName}` path which matches
-  // the backend route you added: https://.../images/{fileName+}
-  let base;
-  try {
-    base = new URL(API_URL).origin;
-  } catch (err) {
-    console.error('getImageResult base URL error:', err);
-    base = API_URL.replace(/\/upload-image.*$/, "");
-  }
+  // Construct the GET URL using the configured API base so stage or path
+  // segments are preserved when present.
+  const base = API_URL;
 
   // Some backends return the key prefixed with a path (e.g. "images/<fileName>").
   // Avoid duplicating the `images/` segment in the final URL by stripping
