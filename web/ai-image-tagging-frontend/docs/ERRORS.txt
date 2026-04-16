@@ -130,7 +130,7 @@ Notes / Next steps:
 - Symptom: Frontend previously polled an incorrect URL (query param) and sometimes attempted PUT to `/undefined` when the upload URL or key was missing.
 - Action taken:
 	- Updated `src/services/api.js` to call the new GET endpoint at `/images/{fileName}` using the API origin and to handle missing keys.
-	- Added a Vite dev proxy in `vite.config.js` so dev requests to `/images/*` are forwarded to `https://6iy1nvu4cl.execute-api.us-east-1.amazonaws.com` (avoids CORS and makes local dev mirror production paths).
+	- Added a Vite dev proxy in `vite.config.js` so dev requests to `/images/*` are forwarded to `https://6iy1nvu4cl.execute-api.us-east-1.amazonaws.com` (avoids CORS and makes local dev mirror deployed API paths).
 - Files changed: src/services/api.js, vite.config.js
 - Verification: Restart dev server (`npm run dev`) and confirm Network tab shows requests to `/images/<fileName>` proxied to the API origin and returning expected JSON.
 
@@ -142,7 +142,7 @@ Notes:
 
 2026-04-10T10:30:00Z — S3 CORS configured to allow local dev uploads
 - Context: Browser OPTIONS preflight to presigned S3 PUT returned 403 and lacked CORS headers, blocking uploads during development.
-- Action taken: Applied S3 bucket CORS allowing `http://localhost:5173` (and production origin when needed). The S3 CORS must be provided as a JSON array (single top-level array of rules) in the S3 console or via `aws s3api`.
+- Action taken: Applied S3 bucket CORS allowing `http://localhost:5173` (and other allowed origins when needed). The S3 CORS must be provided as a JSON array (single top-level array of rules) in the S3 console or via `aws s3api`.
 
 Example CORS JSON (save as `cors.json`):
 [
