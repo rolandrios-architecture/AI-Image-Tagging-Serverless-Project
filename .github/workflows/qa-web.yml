@@ -1,0 +1,40 @@
+name: QA Web Pipeline
+
+on:
+  push:
+    branches: [qa]
+    paths:
+      - 'web/**'
+      - '.github/workflows/qa-web.yml'
+
+jobs:
+  qa-web:
+    name: QA Web Pipeline
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: web/ai-image-tagging-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+      - name: Lint
+        run: npm run lint
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Build
+        run: npm run build

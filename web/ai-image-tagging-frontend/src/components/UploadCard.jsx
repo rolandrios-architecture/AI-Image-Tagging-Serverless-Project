@@ -19,8 +19,6 @@ function UploadCard({ setImage, setStatus, setResult }) {
 
       await uploadToS3(uploadUrl, file);
 
-      await uploadToS3(uploadUrl, file);
-
       let done = false;
       let attempts = 0;
       const maxAttempts = 5;

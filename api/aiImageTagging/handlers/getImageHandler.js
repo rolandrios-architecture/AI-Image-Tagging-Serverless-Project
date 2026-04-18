@@ -4,7 +4,7 @@ exports.getImage = async (event) => {
     try {
 
         const fileName = (() => {
-            try { return decodeURIComponent(event?.pathParameters?.fileName); } catch (e) { return event?.pathParameters?.fileName; }
+            try { return decodeURIComponent(event?.pathParameters?.fileName); } catch { return event?.pathParameters?.fileName; }
         })();
 
         if (!fileName) {
