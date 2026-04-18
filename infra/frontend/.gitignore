@@ -1,0 +1,4 @@
+.terraform/
+coverage/
+*.tfstate
+*.tfstate.*
