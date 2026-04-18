@@ -2,7 +2,6 @@ const { BedrockRuntimeClient, InvokeModelCommand } = require("@aws-sdk/client-be
 
 const client = new BedrockRuntimeClient({ region: "us-east-1" });
 
-// 🔧 Helper: extract JSON safely from LLM response
 const extractJSON = (text) => {
   // Remove markdown if exists
   const clean = text.replaceAll(/```json|```/g, "");
@@ -21,7 +20,6 @@ const extractJSON = (text) => {
 
 exports.generateDescription = async (labels) => {
   try {
-    // 🔧 Normalize labels input
     let labelNames = [];
     if (Array.isArray(labels)) {
       labelNames = labels.map((l) => (typeof l === "string" ? l : l.name)).filter(Boolean);
@@ -89,11 +87,9 @@ if (
   console.error("Unexpected Bedrock response:", JSON.stringify(responseBody));
 }
 
-    // 🧠 Safe parsing
     const parsed = extractJSON(text);
 
     if (!parsed) {
-      // 🔁 fallback deterministic
       return {
         description: `Image contains: ${labelNames.join(", ")}`,
         tags: labelNames.map((l) => l.toLowerCase()),
@@ -104,7 +100,6 @@ if (
   } catch (err) {
     console.error("generateDescription failed:", err);
 
-    // 🔁 fallback total
     const labelNames = Array.isArray(labels)
       ? labels.map((l) => (typeof l === "string" ? l : l.name)).filter(Boolean)
       : [];

@@ -68,7 +68,7 @@ export const getUploadUrl = async (file) => {
   return { success: body.success ?? true, data: { uploadUrl, key }, raw: body };
 };
 
-// 2. PUT → subir a S3
+// 2. PUT → upload image file to S3 using the presigned URL
 export const uploadToS3 = async (uploadUrl, file) => {
   console.debug('uploadToS3 -> PUT', uploadUrl, { fileName: file.name, fileType: file.type });
   const res = await fetch(uploadUrl, {
